@@ -9,10 +9,17 @@
     "eslint": "^10.9.1",
     "prisma": "^7.9.1",
     "typescript-eslint": "^8.68.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   },
+  "scripts": {
+    "dev" : "bunx prisma generate && bunx prisma db push && bun run index.ts",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
   "peerDependencies": {
-    "typescript": "^7.0.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@prisma/client": "^7.9.1",
