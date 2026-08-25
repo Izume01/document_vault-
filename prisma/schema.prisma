@@ -19,7 +19,7 @@ model Document {
   id         String   @id @default(uuid())
   title      String
   content    String
-  tag        String[] @default([])
+  tags        String[] @default([])
   isArchived Boolean  @default(false)
   createdAt  DateTime @default(now())
 
