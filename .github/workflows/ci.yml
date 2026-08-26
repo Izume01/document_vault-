@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sanity-check:
+    name: Lint, Typecheck & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: document_vault
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma Client & Migrate DB
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/document_vault?schema=public"
+        run: |
+          bunx prisma generate
+          bunx prisma migrate deploy
+
+      - name: Run Sanity Suite (Lint, Typecheck, Tests)
+        env:
+          DATABASE_URL: "postgresql://postgres:postgrespassword@localhost:5432/document_vault?schema=public"
+          NODE_ENV: test
+        run: bun run sanity

@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+tests
+*.md
+.vscode
+.claude
+.agents
+.windsurf
