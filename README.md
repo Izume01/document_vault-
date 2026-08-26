@@ -1,164 +1,207 @@
 # Document Vault — GraphQL API
 
-A production-grade Document Vault backend API built with **Bun**, **TypeScript** (strict mode, zero `any`), **GraphQL Yoga** (schema-first), **PostgreSQL 16**, and **Prisma ORM**.
+A small GraphQL API for managing documents and collections, built with Bun, TypeScript, GraphQL Yoga, PostgreSQL, and Prisma.
 
----
+The implementation focuses on the required assignment scope: clean API design, database modeling, validation, testing, and maintainable project structure.
 
-## 🚀 Quick Start (One-Command Setup)
+## Quick Start
 
-To spin up the database, install dependencies, apply migrations, and start the development server:
+Start PostgreSQL, install dependencies, generate the Prisma client, apply migrations, and start the development server:
 
 ```bash
 docker compose up -d && bun install && bun run gendb && bun run dev
 ```
 
-Once started, open your browser and navigate to:
-👉 **[http://localhost:4000/graphql](http://localhost:4000/graphql)** to access the interactive **Yoga GraphiQL IDE**.
+The GraphQL API and GraphiQL interface will be available at:
 
----
+`http://localhost:4000/graphql`
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Runtime & Package Manager**: [Bun](https://bun.sh) (v1.3+)
-- **Language**: [TypeScript](https://www.typescriptlang.org/) (Strict mode enabled, `no-explicit-any`)
-- **API Engine**: [GraphQL Yoga](https://the-guild.dev/graphql/yoga-server) (Schema-first SDL + Typed Resolvers)
-- **Database**: [PostgreSQL 16](https://www.postgresql.org/) (via Docker Compose)
-- **ORM & Migrations**: [Prisma 7](https://www.prisma.io/) with `@prisma/adapter-pg` connection pool
-- **Validation**: [Zod](https://zod.dev/) + `GraphQLError` extensions
-- **Testing**: [Vitest](https://vitest.dev/) (Unit + Integration tests against real PostgreSQL)
-- **Containerization & CI**: Docker Multi-stage build + GitHub Actions
+* **Runtime & package manager:** Bun
+* **Language:** TypeScript with strict mode and no `any`
+* **API:** GraphQL Yoga with schema-first GraphQL SDL
+* **Database:** PostgreSQL 16
+* **ORM:** Prisma
+* **Validation:** Zod
+* **Testing:** Vitest
+* **Database environment:** Docker Compose
 
----
+## Project Structure
 
-## 📂 Project Structure
-
-```
-├── .github/
-│   └── workflows/
-│       └── ci.yml               # GitHub Actions CI (lint, typecheck, migrations, tests)
+```text
 ├── prisma/
-│   ├── schema.prisma            # Collection & Document models with indexes
-│   └── migrations/              # Prisma migration history
+│   ├── schema.prisma
+│   └── migrations/
 ├── src/
 │   ├── db/
-│   │   └── prisma.ts            # PrismaClient singleton with pg Pool adapter
-│   ├── schema/
-│   │   └── schema.graphql       # GraphQL Schema Definition Language (SDL)
-│   ├── utils/
-│   │   └── validation.ts        # Zod validation schemas & GraphQLError formatters
+│   │   └── prisma.ts
 │   ├── resolvers/
-│   │   ├── collection.ts        # Collection queries, mutations, and field resolvers
-│   │   ├── document.ts          # Document search, cursor pagination, and mutations
-│   │   └── index.ts             # Root resolver merger
-│   ├── context.ts               # GraphQL execution context
-│   └── index.ts                 # Server entrypoint with Bun.serve()
+│   │   ├── collection.ts
+│   │   ├── document.ts
+│   │   └── index.ts
+│   ├── schema/
+│   │   └── schema.graphql
+│   ├── utils/
+│   │   └── validation.ts
+│   ├── context.ts
+│   └── index.ts
 ├── tests/
 │   ├── unit/
-│   │   ├── validation.test.ts   # Unit tests for slug regex & string guards
-│   │   └── resolvers.test.ts    # Unit tests for resolver business logic
+│   │   ├── validation.test.ts
+│   │   └── resolvers.test.ts
 │   └── integration/
-│       └── api.test.ts          # Integration tests against PostgreSQL via yoga.fetch()
-├── docker-compose.yml           # PostgreSQL 16 container setup
-├── Dockerfile                   # Multi-stage Bun production container
-├── .dockerignore                # Docker ignore rules
-└── package.json                 # Scripts (dev, gendb, sanity, test, lint, typecheck)
+│       └── api.test.ts
+├── docker-compose.yml
+└── package.json
 ```
 
----
+## API
 
-## 📜 Available Scripts
+### Queries
 
-| Command | Description |
-| :--- | :--- |
-| `bun run dev` | Start development server with hot reload |
-| `bun run gendb` | Generate Prisma Client & apply migrations (`prisma migrate dev`) |
-| `bun run test` | Run the complete test suite (Unit + Integration) |
-| `bun run lint` | Run ESLint across the codebase |
-| `bun run lint:fix` | Fix auto-fixable lint issues |
-| `bun run typecheck` | Run `tsc --noEmit` for strict type checking |
-| `bun run sanity` | **[Bonus]** Run lint, typecheck, and tests in a single command |
+* `collections` — return all collections
+* `collection(id)` — return a collection with its nested documents
+* `documents(...)` — return documents with optional filtering and cursor pagination
 
----
+The `documents` query supports:
 
-## 🧪 Testing Suite
+* `collectionId`
+* `search` — substring match against title or content
+* `isArchived`
+* `take`
+* `cursor`
 
-The repository includes comprehensive **Unit** and **Integration** test coverage running against real PostgreSQL:
+### Mutations
+
+* `createCollection`
+* `createDocument`
+* `updateDocument`
+* `deleteDocument`
+* `moveDocument`
+
+## Validation and Error Handling
+
+The API validates input before performing database operations.
+
+The following cases return GraphQL errors instead of unhandled server errors:
+
+* Empty document titles
+* Empty document contents
+* Empty or invalid collection names
+* Malformed collection slugs
+* Creating a collection with an existing slug
+* Referencing a collection or document that does not exist
+
+Expected errors use structured GraphQL error codes such as:
+
+* `BAD_USER_INPUT`
+* `NOT_FOUND`
+* `CONFLICT`
+
+## Pagination
+
+Documents use cursor-based pagination with `take` and `cursor`.
+
+The resolver fetches one additional document beyond the requested page size to determine whether another page exists.
+
+For example:
+
+```graphql
+documents(take: 10)
+```
+
+requests the first 10 documents.
+
+A subsequent request can provide the returned cursor:
+
+```graphql
+documents(take: 10, cursor: "...")
+```
+
+The maximum page size is capped at 100.
+
+## Database
+
+PostgreSQL runs through Docker Compose.
+
+All database schema changes are managed through Prisma migrations. The migration history is stored under:
+
+```text
+prisma/migrations/
+```
+
+Schema changes should be made through Prisma and applied using:
+
+```bash
+bun run gendb
+```
+
+No hand-written or manually edited SQL migrations are used.
+
+## Testing
+
+The project includes both unit and integration tests.
+
+### Unit Tests
+
+Unit tests cover resolver behavior and validation, including:
+
+* Invalid input handling
+* Missing collections and documents
+* Duplicate collection slugs
+* Document updates
+* Document movement
+
+### Integration Tests
+
+Integration tests run against PostgreSQL and execute the GraphQL API through Yoga.
+
+They cover the interaction between:
+
+* GraphQL schema
+* Resolvers
+* Prisma
+* PostgreSQL
+
+Run the complete test suite with:
+
+```bash
+bun run test
+```
+
+If the optional sanity script is included:
 
 ```bash
 bun run sanity
 ```
 
-- **Validation Unit Tests** (`tests/unit/validation.test.ts`):
-  - Kebab-case slug validation (rejects uppercase, spaces, consecutive/trailing hyphens, special symbols).
-  - Non-empty and trimmed string enforcement.
-  - Partial updates for document attributes.
-- **Resolver Unit Tests** (`tests/unit/resolvers.test.ts`):
-  - Entity existence checks (`NOT_FOUND`).
-  - Slug uniqueness conflict handling (`CONFLICT`).
-- **Integration Tests** (`tests/integration/api.test.ts`):
-  - End-to-end execution of queries and mutations via `yoga.fetch()`.
-  - Nested relation resolution (`Collection.documents` & `Document.collection`).
-  - Substring search across `title` and `content`.
-  - Relay-compliant cursor-based pagination (`take`, `cursor`, `hasNextPage`, `endCursor`).
-  - Moving documents between collections and cascade deletes.
+## Available Commands
 
----
+| Command             | Description                                 |
+| ------------------- | ------------------------------------------- |
+| `bun run dev`       | Start the development server                |
+| `bun run gendb`     | Generate Prisma Client and apply migrations |
+| `bun run test`      | Run the test suite                          |
+| `bun run lint`      | Run ESLint                                  |
+| `bun run lint:fix`  | Fix auto-fixable lint issues                |
+| `bun run typecheck` | Run TypeScript type checking                |
+| `bun run sanity`    | Run lint, typecheck, and tests              |
 
-## 💡 Architecture & Key Design Decisions
+## API Design 
 
-### 1. Schema-First GraphQL Design
-The GraphQL API contract is defined explicitly in [`src/schema/schema.graphql`](file:///home/nyx/Learning/assignments/burdenoff/src/schema/schema.graphql). Resolvers are strictly decoupled and mapped directly to SDL types.
+GraphQL uses a schema-first approach, with the API contract defined in `src/schema/schema.graphql` and the corresponding behavior implemented in resolvers.
 
-### 2. Relay-Compliant Cursor-Based Pagination
-Instead of offset pagination (`LIMIT` / `OFFSET`), which degrades in performance on large datasets and suffers from duplicate/skipped items during concurrent writes, we implement **cursor-based pagination**:
-- The client requests `take: N` and optional `cursor: "<ID>"`.
-- The resolver queries `take: N + 1` ordered by `createdAt DESC`.
-- If `items.length > limit`, `pageInfo.hasNextPage` is `true`.
-- Capped at maximum `take: 100` to prevent Denial-of-Service (DoS) and excessive memory allocation.
+Database access is isolated through Prisma, while validation is kept separate from resolver logic. This keeps the individual parts easy to test and avoids putting too much responsibility into a single layer.
 
-### 3. Substring Search & Combined Filtering
-The `documents(...)` query supports combining multiple optional filters:
-- Filter by `collectionId`.
-- Filter by `isArchived` boolean status.
-- Substring match on `title` OR `content` using PostgreSQL case-insensitive pattern matching (`mode: 'insensitive'`).
+Cursor pagination was chosen over offset pagination because it provides a better foundation for paging through changing datasets while keeping the implementation relatively simple.
 
-### 4. Structured Error Handling (No 500 Crashes)
-All validation errors and domain rule violations throw `GraphQLError` with typed `extensions.code`:
-- `BAD_USER_INPUT`: Malformed slugs, empty/whitespace strings.
-- `NOT_FOUND`: Referenced collection or document IDs that do not exist.
-- `CONFLICT`: Attempting to create a collection with a duplicate slug.
+## Extending the Design
 
----
+If the application grew beyond the current assignment, the first areas I would consider extending are:
 
-## 🔮 How to Extend the Design (Production Roadmap)
+* PostgreSQL full-text search for larger document collections
+* DataLoader for batching nested relation queries
+* Additional indexing based on actual query patterns
 
-If scaling this service to production, here is how the architecture can be extended:
-
-1. **Full-Text Search (FTS)**:
-   - *Current*: Substring search via `ILIKE` / `mode: 'insensitive'`.
-   - *Extension*: Utilize PostgreSQL `tsvector` and GIN indexes, or external search engines like Meilisearch/Elasticsearch for typo-tolerance, stemming, and relevance ranking.
-2. **DataLoader for N+1 Query Batching**:
-   - *Current*: Resolvers use Prisma relations.
-   - *Extension*: Introduce `DataLoader` to batch and deduplicate database queries when resolving nested `Collection.documents` or `Document.collection` across multiple records.
-3. **Opaque Base64 Cursors**:
-   - *Current*: Transparent ID-based cursors.
-   - *Extension*: Base64-encode composite cursors (e.g. `base64(createdAt:id)`) to keep pagination cursors opaque and decoupled from database schema internals.
-4. **Soft Deletion & Audit Logging**:
-   - *Current*: Hard delete (`prisma.document.delete`).
-   - *Extension*: Add `deletedAt: DateTime?` with Prisma client extensions to support document restoration and compliance audit trails.
-5. **Authentication & Rate Limiting**:
-   - Introduce JWT verification in `createContext` and integrate rate limiting via GraphQL Armor / Yoga plugins.
-
----
-
-## 🚢 Docker & Deployment
-
-Build and run the production container:
-
-```bash
-# Build production image
-docker build -t document-vault:latest .
-
-# Run container
-docker run -p 4000:4000 --env-file .env document-vault:latest
-```
+These are intentionally not part of the current implementation because they are not required by the assignment.
